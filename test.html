@@ -69,24 +69,29 @@
     var allOk = true;
 
     // Guard: words.js and round.js must have loaded
-    if (typeof WORDS === "undefined" || typeof pickRound === "undefined") {
+    if (typeof WORDS === "undefined" || typeof pickRound === "undefined" ||
+        typeof checkAnswer === "undefined" || typeof recordAnswer === "undefined" ||
+        typeof resetCounters === "undefined") {
       report(false, "Setup", "words.js or round.js failed to load.");
     } else {
 
-      // --- Rule 1: every entry has a non-empty Dutch word and English meaning ---
-      var empty = [];
+      // --- Rule 1: every entry has a non-empty Dutch word, a valid type and an English translation ---
+      var TYPES = ["noun", "verb", "adjective", "adverb", "preposition",
+                   "pronoun", "conjunction", "other"];
+      var bad = [];
       for (var i = 0; i < WORDS.length; i++) {
         var w = WORDS[i] || {};
-        if (!String(w.nl || "").trim() || !String(w.en || "").trim()) {
-          empty.push("entry " + i);
+        var en = w.translations ? String(w.translations.en || "").trim() : "";
+        if (!String(w.nl || "").trim() || TYPES.indexOf(w.type) === -1 || !en) {
+          bad.push("entry " + i + " (" + (w.nl || "?") + ")");
         }
       }
       allOk = report(
-        empty.length === 0,
-        "1. Every entry has a non-empty Dutch word and English meaning",
-        empty.length === 0
-          ? "All " + WORDS.length + " entries have both sides."
-          : "Empty side in: " + empty.join(", ")
+        bad.length === 0,
+        "1. Every entry has a non-empty Dutch word, a valid type and an English translation",
+        bad.length === 0
+          ? "All " + WORDS.length + " entries have a word, a type and English."
+          : "Problem in: " + bad.join(", ")
       );
 
       // --- Rule 2: no duplicate Dutch words ---
@@ -105,7 +110,30 @@
           : "Duplicates: " + dups.join(", ")
       ) && allOk;
 
-      // --- Rule 3: a round always has exactly 20 words, no duplicates ---
+      // --- Rule 3: every translation key exists in "languages" ---
+      var unknown = [];
+      if (typeof LANGUAGES === "undefined") {
+        unknown.push("LANGUAGES is missing from words.js");
+      } else {
+        for (var i = 0; i < WORDS.length; i++) {
+          var translations = (WORDS[i] || {}).translations || {};
+          var keys = Object.keys(translations);
+          for (var k = 0; k < keys.length; k++) {
+            if (!LANGUAGES[keys[k]]) {
+              unknown.push(((WORDS[i] || {}).nl || "?") + " -> " + keys[k]);
+            }
+          }
+        }
+      }
+      allOk = report(
+        unknown.length === 0,
+        "3. Every translation key exists in \"languages\"",
+        unknown.length === 0
+          ? "All translation keys are declared in LANGUAGES."
+          : "Unknown language key: " + unknown.join(", ")
+      ) && allOk;
+
+      // --- Rule 4: a round always has exactly 20 words, no duplicates ---
       var roundError = "";
       if (WORDS.length < 20) {
         roundError = "Word bank has only " + WORDS.length + " words (need 20).";
@@ -129,8 +157,73 @@
       }
       allOk = report(
         roundError === "",
-        "3. A new round has exactly 20 words, no duplicates",
+        "4. A new round has exactly 20 words, no duplicates",
         roundError === "" ? "100 rounds tested, each with 20 unique words." : roundError
+      ) && allOk;
+
+      // --- Rule 5: options are always 4 unique English translations with exactly one correct ---
+      var optionError = "";
+      for (var i = 0; i < WORDS.length && !optionError; i++) {
+        var word = WORDS[i] || {};
+        var answer = String((word.translations || {}).en || "");
+        var options = buildOptions(word);
+
+        if (options.length !== 4) {
+          optionError = (word.nl || "?") + " gave " + options.length + " options.";
+        } else {
+          var unique = [];
+          for (var j = 0; j < options.length; j++) {
+            if (unique.indexOf(options[j]) === -1) unique.push(options[j]);
+          }
+          if (unique.length !== options.length) {
+            optionError = (word.nl || "?") + " has duplicate options.";
+          } else if (unique.indexOf(answer) === -1) {
+            optionError = (word.nl || "?") + " has no correct option.";
+          }
+        }
+      }
+      allOk = report(
+        optionError === "",
+        "5. Options are always 4 unique English translations with exactly one correct",
+        optionError === ""
+          ? "All " + WORDS.length + " words give 4 unique options with exactly one correct."
+          : optionError
+      ) && allOk;
+
+      // --- Rule 6: a correct pick raises the correct counter by one; a wrong pick raises the wrong counter ---
+      var counterError = "";
+      var first = WORDS[0] || {};
+
+      // A correct pick
+      resetCounters();
+      recordAnswer(checkAnswer(first, first.translations.en));
+      if (counters.correct !== 1 || counters.wrong !== 0) {
+        counterError = "Correct pick gave " + counters.correct +
+                       " correct / " + counters.wrong + " wrong.";
+      }
+
+      // A wrong pick (any option that is not the answer)
+      if (!counterError) {
+        var options = buildOptions(first);
+        var wrongPick = "";
+        for (var i = 0; i < options.length; i++) {
+          if (options[i] !== first.translations.en) { wrongPick = options[i]; break; }
+        }
+        resetCounters();
+        recordAnswer(checkAnswer(first, wrongPick));
+        if (counters.wrong !== 1 || counters.correct !== 0) {
+          counterError = "Wrong pick gave " + counters.correct +
+                         " correct / " + counters.wrong + " wrong.";
+        }
+      }
+
+      resetCounters();           // leave the shared counters clean
+      allOk = report(
+        counterError === "",
+        "6. A correct pick raises the correct counter by one; a wrong pick raises the wrong counter",
+        counterError === ""
+          ? "Correct pick: 1 correct; wrong pick: 1 wrong."
+          : counterError
       ) && allOk;
     }
 

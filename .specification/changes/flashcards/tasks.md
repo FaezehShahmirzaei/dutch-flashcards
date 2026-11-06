@@ -1,8 +1,25 @@
 # tasks.md - Dutch Flashcards
 
-- [x] 1. Write plan.md and get approval
-- [x] 2. Create index.html skeleton: header/score area, card, "I knew it" / "I didn't know it" buttons, "New round" button, plus CSS
-- [x] 3. Create words.js with ~150 everyday-life Dutch A2 words (shopping, food, home, work, transport, health, weather); load it from index.html
-- [x] 4. Round logic: pick 20 random words from the word bank, show one card at a time, click-to-flip
-- [x] 5. Wire "I knew it" (score +1, advance) and "I didn't know it" (advance only)
-- [x] 6. End of round: final score (knew / 20) and "New round" button starts a new random round
+- [x] 1. Rewrite plan.md for the final design and get approval
+- [x] 2. index.html skeleton: correct / wrong counters, language dropdown, card, answer-option area, "New round" button, plus CSS
+- [x] 3. words.js: `languages` object (en, fa, fr) with `name` and `dir`
+- [x] 4. words.js: convert every entry to `{ nl, type, translations: { en, fa, fr } }`
+- [x] 5. words.js: ~150 everyday-life words, each with a type and Persian + French translations
+- [x] 6. round.js: `pickRound` returns 20 random unique words
+- [x] 7. Card front: Dutch word, word type, 🔊 button (clicking the card does nothing)
+- [x] 8. round.js: `buildOptions` returns 4 unique English options, 1 correct + 3 distractors (same type preferred), shuffled
+- [x] 9. Answer: correct → green, wrong → red, options stop responding for this word, card flips to the translations
+- [x] 10. "Next" button appears after the pick and moves to the next card
+- [x] 11. Correct / wrong counters at the top update on each pick
+- [x] 12. Pronunciation: `speechSynthesis` with lang "nl-NL", Dutch voice preferred, works before and after the flip
+- [x] 13. Pronunciation shows a short message when no Dutch voice is available
+- [x] 14. Dropdown at the top: every language in words.js except English plus "None", default Persian, never hard-coded
+- [x] 15. Save the language choice in `localStorage`, wrapped in `try/catch`
+- [x] 16. Card back: English always, then the chosen second language, `dir` per language, "—" when a translation is missing
+- [x] 17. End of round: correct / wrong totals and the "New round" button
+- [x] 18. test.html rule 1: non-empty Dutch word, valid type, English translation
+- [x] 19. test.html rule 2: no duplicate Dutch words
+- [x] 20. test.html rule 3: every translation key exists in "languages"
+- [x] 21. test.html rule 4: a round has exactly 20 unique words
+- [x] 22. test.html rule 5: options are always 4 unique English translations with exactly one correct
+- [x] 23. test.html rule 6: a correct pick raises the correct counter by one; a wrong pick raises the wrong counter

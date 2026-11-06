@@ -2,20 +2,25 @@
 
 A small browser app for practising **Dutch A2 vocabulary** about everyday life, built step by step with a free AI coding agent ([OpenCode](https://opencode.ai)) using **Spec-Driven Development (SDD)**.
 
+🔗 **Live demo:** https://faezehshahmirzaei.github.io/dutch-flashcards/
+
 The app itself is simple. The point of the project is the **method**: every decision (intent → spec → plan → tasks) is written down *before* a single line of code exists, and only then does the agent write the code.
 
 > Based on the [GroningenPHP Spec-Driven Development workshop](https://groningenphp.nl/workshops/spec-driven/), adapted to a smaller, no-install project.
 
 ---
 
-## ✨ What the app does
+## ✨ Features
 
-- Shows one Dutch word per card; click the card to flip it and see the English meaning
-- Two buttons: **"I knew it"** and **"I didn't know it"**
-- Score for each round (`knew / 20`)
-- Each round picks **20 random words** from the whole word bank
-- **"New round"** starts a new round with a fresh random selection
-- **Unlimited word bank**: add new words at any time by editing `words.js` only
+- **Multiple-choice quiz:** each card shows a Dutch word; pick the right English meaning from 4 options
+- **Word type** on every card: noun, verb, adjective, adverb, preposition, pronoun, conjunction, other
+- **Pronunciation** 🔊: hear the Dutch word with a Dutch voice (built-in browser speech, no libraries)
+- **Instant feedback:** the correct option turns green, a wrong pick turns red, then the card flips
+- **Back of the card:** the English translation plus **one second language** of your choice (Persian, French, …), with right-to-left support
+- **Score counters** at the top: ✅ correct and ❌ wrong
+- **Rounds of 20 random words** from the whole word bank; "New round" starts a fresh selection
+- **Unlimited, extendable word bank:** add words, or even whole new languages, by editing `words.js` only
+- **Remembers** your language choice between visits
 - Runs directly in the browser: no server, no frameworks, no build tools
 
 ---
@@ -23,10 +28,11 @@ The app itself is simple. The point of the project is the **method**: every deci
 ## 📁 Project structure
 
 ```
-sdd-workshop/
+dutch-flashcards/
 ├── agents.md                          # Project rules the agent reads every session
-├── index.html                         # The app (HTML + CSS + JavaScript)
-├── words.js                           # The word bank (~150 words to start, no limit)
+├── index.html                         # The app: layout, styles and UI
+├── round.js                           # Shared logic: pick a round, build options, check answers
+├── words.js                           # Languages + word bank (~150 words to start, no limit)
 ├── test.html                          # Browser-based checks (PASS / FAIL)
 └── .specification/
     └── changes/
@@ -40,21 +46,46 @@ sdd-workshop/
 
 ## 🚀 Quick start (just use the app)
 
-1. Clone or download this repository.
-2. Double-click `index.html` to open it in your browser.
-3. Click the card, answer honestly, and watch your score.
+1. Open the [live demo](https://faezehshahmirzaei.github.io/dutch-flashcards/), **or** clone this repository and double-click `index.html`.
+2. Choose your second language in the dropdown at the top.
+3. Press 🔊 to hear the word, pick an answer, and press **Next**.
 
 To check the word bank and app logic, open `test.html`. Every rule should show **PASS** in green.
 
-### Adding your own words
+> 🔊 No sound? The pronunciation uses your browser's built-in voices. Chrome and Edge usually include a Dutch voice. On Windows you can add one under
+> **Settings → Time & language → Speech → Add voices → Nederlands**.
 
-Open `words.js` in any text editor and add a new line inside the list, following the format of the existing entries, for example:
+---
+
+## ➕ Adding words and languages
+
+All content lives in `words.js`.
+
+### The format
 
 ```js
-{ nl: "de fiets", en: "the bicycle" },
+const languages = {
+  en: { name: "English",  dir: "ltr" },
+  fa: { name: "فارسی",    dir: "rtl" },
+  fr: { name: "Français", dir: "ltr" }
+};
+
+// one entry per word
+{ nl: "de fiets", type: "noun",
+  translations: { en: "the bicycle", fa: "دوچرخه", fr: "le vélo" } },
 ```
 
-Save the file and refresh the browser (`F5`). No other file needs to change.
+### Add a word
+
+Add a new entry to the word list (an English translation is required), save, and refresh the browser (`F5`).
+
+### Add a language
+
+1. Add it to `languages`, for example: `de: { name: "Deutsch", dir: "ltr" },`
+2. Add the translations with the same code: `de: "das Fahrrad"`
+
+The new language appears in the dropdown automatically. Words without a translation in that language show "—".
+If you use a code that isn't in `languages` (for example a typo), rule 3 in `test.html` turns red.
 
 ---
 
@@ -66,7 +97,7 @@ You need two things: a **coding agent** (runs in your terminal) and a **model** 
 
 #### 1. Install OpenCode
 
-**Windows (PowerShell)** — one of:
+**Windows (PowerShell)**, one of:
 
 ```powershell
 scoop install opencode
@@ -88,34 +119,22 @@ Restart your terminal, then confirm the installation:
 opencode --version
 ```
 
-*Optional:* the file-tree plugin (it may fail to load on Windows; the project works fine without it):
-
-```bash
-opencode plugin --global opencode-file-tree
-```
-
-> ⚠️ Commands like the one above are typed in **PowerShell / your terminal**, not in the OpenCode chat box. The chat box is for talking to the AI.
+> ⚠️ Commands like these are typed in **PowerShell / your terminal**, not in the OpenCode chat box. The chat box is for talking to the AI.
 
 #### 2. Connect a free model
 
 Start OpenCode, type `/models`, and choose a free model, for example **MiMo V2.6 Flash Free**. No API key is needed.
-
 Alternatives: GitHub Copilot (`/connect`) or a local model via [Ollama](https://ollama.com).
 
 #### 3. Readiness check
 
 ```bash
-mkdir sdd-workshop
-cd sdd-workshop
+mkdir dutch-flashcards
+cd dutch-flashcards
 opencode
 ```
 
-Then send:
-
-```
-Say hello and tell me which model you are.
-```
-
+Then send: `Say hello and tell me which model you are.`
 ✅ You're ready when the agent replies.
 
 #### Two modes you will use
@@ -125,7 +144,7 @@ Say hello and tell me which model you are.
 | **Plan** | The agent thinks and plans, but cannot write code | `Shift + Tab` (or `Tab` in some versions) |
 | **Build** | The agent can create and edit files | `Shift + Tab` |
 
-The current mode is shown in purple under the input box.
+Press `Esc` (sometimes twice) to stop the agent mid-task.
 
 ---
 
@@ -133,14 +152,11 @@ The current mode is shown in purple under the input box.
 
 #### Step 1 · Intent and project rules → `agents.md`
 
-Can you describe the app in one sentence?
-*"A flashcard app to practise Dutch A2 vocabulary in the browser."*
-
-Paste into OpenCode (Build mode):
+One sentence: *"A multiple-choice flashcard app to practise Dutch A2 vocabulary in the browser."*
 
 ```
 Create an agents.md file at the root of this folder with these project rules:
-- A single-page web app: one index.html file with plain HTML, CSS and JavaScript
+- A single-page web app: plain HTML, CSS and JavaScript
 - No frameworks, no build tools, no installs - it must open directly in the browser
 - Keep the code simple and readable, with short comments
 - Specification files live in /.specification/changes/flashcards/
@@ -148,107 +164,107 @@ Create an agents.md file at the root of this folder with these project rules:
 - Do not write any code until the user approves the plan
 ```
 
-✅ **Checkpoint:** `agents.md` exists. (`spec.md`, `plan.md` and `tasks.md` don't exist yet; each one is created in its own step.)
+✅ **Checkpoint:** `agents.md` exists. `spec.md`, `plan.md` and `tasks.md` are created in the next steps.
 
-#### Step 2 · Spec: what and why → `spec.md`
+#### Steps 2–4 · Spec, plan and tasks
 
-```
-Create the file .specification/changes/flashcards/spec.md with this content,
-then help me sharpen it by asking me up to 3 questions. Do NOT write any code.
-
-# spec.md - Dutch Flashcards
-
-## Problem
-I am learning Dutch at A2 level and want a quick way to practise vocabulary.
-
-## Why
-Paper cards get lost and apps need accounts; I want something that opens in the browser instantly.
-
-## Boundaries
-- About 20 Dutch A2 words with their English meaning, provided up front
-- Show one card at a time with the Dutch word
-- Click the card to flip it and see the meaning
-- Two buttons: "I knew it" and "I didn't know it"
-- A score shows how many words I knew
-
-## Done means
-I open index.html, flip a card, click "I knew it", and the score goes up by one.
-```
-
-✅ **Checkpoint:** `spec.md` contains only *what* and *why*, no implementation details.
-
-#### Step 3 · Plan: how → `plan.md`
-
-Switch to **Plan** mode and paste:
+In **Plan** mode, paste the full specification. This is the final version, after several rounds of changing my mind (see *How the requirements evolved* below):
 
 ```
-We're building the app described in .specification/changes/flashcards/spec.md.
-Follow the rules in agents.md. Stay in plan mode and do NOT write code yet.
+Write spec.md, plan.md and tasks.md in .specification/changes/flashcards/
+describing the design below. Do NOT write any code.
 
-Write a plan for .specification/changes/flashcards/plan.md:
-- which files to create, in what order
-- for each step, a simple check that proves it works
-  (for example: "open index.html in the browser and see the first card")
-Keep it small: one index.html with HTML, CSS and JavaScript is enough.
-Show me the plan here first.
+=== spec.md (WHAT and WHY) ===
+
+Problem: I am learning Dutch at A2 level and want a quick, fun way to practise
+everyday-life vocabulary in the browser.
+
+Word bank
+- Dutch A2 words about everyday life (shopping, food, home, work, transport,
+  health, weather). Start with about 150 words.
+- No size limit: I can add new words at any time by editing words.js only.
+- Every word has: the Dutch word, its word type, and translations.
+- Word types: noun, verb, adjective, adverb, preposition, pronoun, conjunction, other.
+
+Rounds
+- Each round picks 20 random words from the whole word bank, no duplicates.
+- A "New round" button starts a new round with a new random selection.
+
+The card
+- Shows the Dutch word, its word type, and a pronunciation button (🔊).
+- Clicking the card does nothing: it flips only after an option is picked.
+
+Multiple choice
+- Below the card: 4 answer options, ALWAYS in English.
+- 1 correct translation and 3 wrong ones taken from other words in the bank
+  (preferably of the same word type). Options are shuffled, no duplicates.
+- After the user picks an option:
+  - the correct option turns green; a wrong pick turns red
+  - the options cannot be clicked again for this word
+  - the card flips to show the translations
+  - a "Next" button appears
+
+Back of the card
+- ALWAYS shows the English translation.
+- Below it, ONE second language chosen by the user.
+
+Language setting
+- At the top of the page: a dropdown to choose the second language.
+- It lists every language found in words.js except English, plus "None" (English only).
+- Languages are NOT hard-coded: a new language added to words.js appears automatically.
+- Default: Persian (فارسی). The choice is remembered between visits.
+- Right-to-left languages (like Persian) display right-to-left.
+- If a word has no translation for the chosen language, show "—".
+
+Score
+- At the top of the page: a counter for correct answers and a counter for wrong answers.
+- At the end of the round: show the correct / wrong totals and the "New round" button.
+
+Pronunciation
+- The 🔊 button reads the Dutch word aloud with a Dutch voice.
+- It works before and after the card is flipped.
+- If no Dutch voice is available, show a short message instead of failing.
+
+Done means
+- I open index.html, hear the Dutch word with 🔊, pick the correct English option,
+  it turns green, the correct counter goes up by one, and the back of the card
+  shows English and Persian.
+
+=== plan.md (HOW) ===
+- Keep it simple: index.html + round.js + words.js + test.html.
+  No frameworks, no build tools, must open directly from disk.
+- words.js stays a JS file (not JSON) so it works from file://. It contains:
+  a) a "languages" object: code -> { name, dir }
+  b) every word entry: { nl, type, translations: { en, fa, fr } }
+- round.js holds the shared functions: picking a round, building the 4 options,
+  checking an answer (so test.html can call them).
+- Pronunciation with the browser's built-in speechSynthesis, lang "nl-NL",
+  preferring a Dutch voice, no libraries.
+- Save the language choice in localStorage, wrapped in try/catch.
+- For each step, name a simple check that proves it works.
+- test.html shows each rule as PASS (green) or FAIL (red):
+  1. every entry has a non-empty Dutch word, a valid type and an English translation
+  2. no duplicate Dutch words
+  3. every translation key exists in "languages"
+  4. a round has exactly 20 unique words
+  5. options are always 4 unique English translations with exactly one correct
+  6. a correct pick raises the correct counter by one; a wrong pick raises the wrong counter
+
+=== tasks.md ===
+- Small, ordered, unticked checkboxes, each checkable on its own.
+
+When done, show me the full spec.md, plan.md and tasks.md.
 ```
 
-**Review the plan**, the most important moment of the method. Ask yourself:
+**Review gate:** read all three files before any code exists. In my case, the review caught a real bug: one task said *"click the card to flip it"*, which would reveal the answer before choosing. Fixing it cost one sentence instead of a rewrite.
 
-- Does it cover everything in the spec?
-- Is it still simple (one or two files, nothing to install)?
-- Does every step have a check?
-
-Changing your mind here costs one sentence; after the code is written it costs a rewrite.
-
-Once you approve it, switch back to **Build** mode and save it:
+Then switch to **Build** mode and save:
 
 ```
-I approve this plan. Save it exactly as written to
-.specification/changes/flashcards/plan.md
-Only create this file. Do NOT write any code yet.
-```
-
-#### Step 4 · Tasks: units of work → `tasks.md`
-
-```
-Read plan.md and break it into small, ordered tasks.
-Save them as a checklist in .specification/changes/flashcards/tasks.md
-Each task must be small and checkable on its own, for example:
-- [ ] word list with 20 Dutch A2 words exists
-- [ ] index.html shows the first card in the browser
-- [ ] clicking the card flips it to show the meaning
-- [ ] "I knew it" button increases the score by one
-Only create this file. Do NOT write any code yet.
+I approve. Save these three files exactly as shown. Do NOT write any code yet.
 ```
 
 ✅ **Checkpoint:** `spec.md`, `plan.md` and `tasks.md` exist, and **no code has been written yet**.
-
-#### 🔁 Changing requirements before code: the cheap moment
-
-During the project I wanted an unlimited word bank with random rounds instead of 20 fixed words. Because no code existed yet, the change only touched the spec files:
-
-```
-I want to change the requirements. Update the specification files, do NOT write any code.
-
-1. In spec.md, replace the word list requirement with:
-   - A word bank of Dutch A2 words about everyday life
-     (shopping, food, home, work, transport, health, weather), each with its English meaning
-   - The word bank has no size limit: I must be able to add new words at any time
-     by editing one simple file, without touching the rest of the code
-   - Start the word bank with about 150 words
-   - Each practice round picks 20 random words from the whole word bank
-   - A "New round" button starts a new round with a new random selection
-
-2. Update plan.md to match the new spec.
-   Keep the words in a separate file called words.js
-   (not JSON, so the app still works when index.html is opened directly from disk).
-
-3. Update tasks.md to match the new plan
-   (or create it if it does not exist yet).
-
-Show me what changed in each file.
-```
 
 > 💡 Why `words.js` and not `words.json`? Browsers block reading local JSON files when a page is opened directly from disk (`file://`). A `.js` file loaded with a `<script>` tag works everywhere.
 
@@ -259,71 +275,77 @@ Show me what changed in each file.
 #### Step 5 · Implement, one task at a time
 
 ```
-Go ahead and implement tasks.md, ONE task at a time.
-After each task:
-- tick its checkbox in tasks.md
-- tell me how to check it in the browser
-- then STOP and wait for my "next" before starting the next task.
+Implement tasks.md ONE task at a time.
+After each task, tick it, tell me how to check it in the browser, and wait for my "next".
 ```
 
-After each task, open `index.html` in the browser (or refresh with `F5`), check the result, and type `next`.
+After each task, refresh `index.html` (`F5`), check the result, and type `next`.
+If the agent stops halfway through a long task (like generating 150 translated words), type `continue`.
 
-✅ **Checkpoint (MVP):** open the app, flip a card, click "I knew it", and the score goes up by one.
+#### Step 6 · Verify with real checks, not polite sentences
 
-#### Step 6 · Verify with a real check, not a polite sentence
-
-A rule written as prose in the spec ("please don't leave meanings empty") is weak. A **test that turns red** when the rule is broken is real.
-
-```
-Add a test page called test.html that I can open directly in the browser.
-It must check these rules and show each one as PASS (green) or FAIL (red):
-1. Every entry in words.js has a non-empty Dutch word and a non-empty English meaning.
-2. There are no duplicate Dutch words in words.js.
-3. A new round always has exactly 20 words, with no duplicates.
-Keep the round logic in one function so the test can call it.
-Do not change how the app looks or works.
-```
-
-✅ **Checkpoint:** all checks are green. Then temporarily delete one meaning in `words.js`, refresh `test.html`, and confirm it turns **red**. Restore it afterwards.
+A rule written as prose ("please don't leave translations empty") is weak. A **test that turns red** when the rule is broken is real. Open `test.html`: all six rules should be green.
+Then break one on purpose (for example, delete an English translation in `words.js`), refresh, and confirm it turns **red**. Restore it afterwards.
 
 #### Step 7 · Human review
 
-Read the result and compare it with your artifacts:
+Compare the result with your artifacts:
 
 - Rules in `agents.md` followed?
 - Intent of `spec.md` preserved?
 - All boxes in `tasks.md` ticked?
 - `test.html` green?
+- Translations correct? (AI-generated Persian and French translations and word types need a human check.)
 
-If the plan turns out to be wrong somewhere, fix it in `plan.md` first, then let the agent redo that step. Finally, record what's done and what isn't:
+---
 
-```markdown
-## Done
-- Flip cards, score, 20 random words per round, "New round", unlimited word bank, tests
+## 🔁 How the requirements evolved, cheaply
 
-## Not done, and why
-- Adding words from inside the app: kept out of scope to stay simple
+Every change below was made **in the spec files before code was touched**, so each one cost a few lines of Markdown:
+
+1. **v1:** 20 fixed words, "I knew it" / "I didn't know it" buttons, flip on click
+2. **v2:** unlimited word bank in `words.js`, 20 random words per round
+3. **v3:** multiple languages on the back of the card
+4. **v4:** multiple choice instead of self-assessment, correct/wrong counters, Dutch pronunciation, word types
+5. **v5 (final):** options always in English; English + one chosen second language on the back of the card
+
+> *"Waterfall's flaw was never having a plan. It was waiting months to find out the plan was wrong."* (from the workshop)
+
+---
+
+## 🌐 Publishing on GitHub
+
+```powershell
+git init
+git add .
+git commit -m "Dutch flashcards app built with spec-driven development"
+git branch -M main
+git remote add origin https://github.com/<your-username>/dutch-flashcards.git
+git push -u origin main
+```
+
+On the first push, Git for Windows opens the browser to sign in to GitHub, so no manual token is needed.
+To publish the app online: **Settings → Pages → Branch: `main`, Folder: `/ (root)`**.
+
+For later changes:
+
+```powershell
+git add .
+git commit -m "Describe your change"
+git push
 ```
 
 ---
 
 ## 💡 Ideas for next steps
 
-Add each one as a new spec requirement and plan step first, to keep practising the loop:
+Add each one as a new spec requirement and plan step first:
 
-- Repeat the words you didn't know at the end of the round
+- Repeat the words you got wrong at the end of the round
 - Choose a category (shopping, food, work…) before a round
 - Reverse mode: English → Dutch
-- Remember progress between sessions (`localStorage`)
+- Show the article (de / het) as a separate quiz
 - Add new words from inside the app
-
----
-
-## 🧠 What I learned
-
-> Simple tasks need a prompt. Complex ones need a spec.
-
-Writing down intent, spec, plan and tasks before coding made every review short, and a change of requirements (fixed list → unlimited random word bank) cost a few lines of Markdown instead of a rewrite.
 
 ---
 

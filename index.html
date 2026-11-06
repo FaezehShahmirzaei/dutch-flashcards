@@ -16,37 +16,87 @@
       padding: 40px 16px;
     }
 
-    h1 {
-      margin: 0 0 8px;
-    }
+    h1 { margin: 0 0 8px; }
 
-    /* Score line under the title */
-    #score {
-      margin: 0 0 24px;
+    /* Top bar: counters on the left, language dropdown on the right */
+    .topbar {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+      margin-bottom: 24px;
       color: #555;
     }
 
-    /* The flashcard itself */
+    /* The flashcard itself: two faces that flip over */
     #card {
       width: 320px;
       height: 180px;
-      background: #fff;
-      border: 2px solid #ccc;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 32px;
-      cursor: pointer;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+      perspective: 900px;
       margin-bottom: 24px;
     }
 
-    /* Row of buttons under the card */
-    .buttons {
+    .card-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transition: transform 0.4s;
+      transform-style: preserve-3d;
+    }
+
+    #card.flipped .card-inner { transform: rotateY(180deg); }
+
+    .face {
+      position: absolute;
+      inset: 0;
+      backface-visibility: hidden;
+      background: #fff;
+      border: 2px solid #ccc;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
       display: flex;
-      gap: 12px;
-      margin-bottom: 12px;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 12px;
+      text-align: center;
+    }
+
+    /* Dutch word and its type on the front of the card */
+    #word { font-size: 32px; }
+
+    #word-type {
+      font-size: 13px;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* Pronunciation button (speech arrives in task 12) */
+    .speak {
+      padding: 6px 12px;
+      font-size: 16px;
+      background: #eee;
+      color: #333;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+
+    /* Back of the card: the translations */
+    .back { transform: rotateY(180deg); font-size: 22px; }
+
+    #answer-second {
+      font-size: 18px;
+      color: #555;
+      max-width: 100%;
+    }
+
+    /* Four answer options under the card */
+    #options {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(140px, 220px));
+      gap: 10px;
+      margin-bottom: 16px;
     }
 
     button {
@@ -59,100 +109,284 @@
       color: #fff;
     }
 
-    button.secondary {
-      background: #888;
-    }
+    button:disabled { cursor: default; }
+    button.new-round { background: #28a745; }
 
-    button.new-round {
-      background: #28a745;
+    /* Answer feedback: correct is green, a wrong pick is red */
+    button.option.correct { background: #28a745; }
+    button.option.wrong { background: #dc3545; }
+
+    /* Message when no Dutch voice can be used */
+    #voice-note {
+      color: #b00020;
+      font-size: 14px;
+      margin: -12px 0 16px;
     }
   </style>
 </head>
 <body>
   <h1>Dutch Flashcards</h1>
-  <p id="score">Score: 0 / 20</p>
 
-  <!-- Card shows the Dutch word; click flips it -->
-  <div id="card">hallo</div>
-
-  <div class="buttons">
-    <button id="knew">I knew it</button>
-    <button id="didnt-know">I didn't know it</button>
+  <!-- Counters and the second-language dropdown -->
+  <div class="topbar">
+    <span id="correct">Correct: 0</span>
+    <span id="wrong">Wrong: 0</span>
+    <label for="second-language">Second language</label>
+    <!-- Options are filled from words.js (task 14) -->
+    <select id="second-language"></select>
   </div>
+
+  <!-- Card: front = Dutch word + type + 🔊, back = the translations.
+       It flips only after an answer; clicking the card itself does nothing. -->
+  <div id="card">
+    <div class="card-inner">
+      <div class="face front">
+        <span id="word">hallo</span>
+        <span id="word-type"></span>
+        <button class="speak" type="button">🔊</button>
+      </div>
+      <div class="face back">
+        <div id="answer-en"></div>
+        <div id="answer-second" hidden></div>
+        <button class="speak" type="button">🔊</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- The four English options (built by buildOptions) -->
+  <div id="options"></div>
+
+  <!-- Shown when the browser has no Dutch voice -->
+  <p id="voice-note" hidden>No Dutch voice is available in this browser.</p>
+
+  <!-- Next appears after an answer (task 10) -->
+  <button id="next" hidden>Next</button>
   <button class="new-round" id="new-round">New round</button>
 
   <script src="words.js"></script>
   <script src="round.js"></script>
   <script>
-    // --- Round logic ---
-    var ROUND_SIZE = 20;          // words per round
+    // --- Show one word at a time, four options, flip after answering ---
+    var ROUND_SIZE = 20;
     var round = [];               // the 20 random words of this round
     var index = 0;                // position in the round
-    var showingDutch = true;      // which side of the card is visible
-    var score = 0;                // words answered with "I knew it"
+    var answered = false;         // true once an option was picked
 
-    // Show the current card (Dutch side first)
+    // Update the two counters at the top (state lives in round.js)
+    function showCounters() {
+      document.getElementById("correct").textContent = "Correct: " + counters.correct;
+      document.getElementById("wrong").textContent = "Wrong: " + counters.wrong;
+    }
+
+    // Build the four English options under the card
+    function renderOptions() {
+      var options = buildOptions(round[index]);
+      var box = document.getElementById("options");
+      box.innerHTML = "";
+      options.forEach(function (text) {
+        var btn = document.createElement("button");
+        btn.className = "option";
+        btn.type = "button";
+        btn.textContent = text;
+        btn.addEventListener("click", function () { pick(btn, text); });
+        box.appendChild(btn);
+      });
+    }
+
+    // Back of the card: always English, below it ONE second language.
+    // "None" hides the second line; a missing translation shows "—".
+    function renderBack() {
+      var word = round[index];
+      document.getElementById("answer-en").textContent = word.translations.en;
+
+      var code = document.getElementById("second-language").value;
+      var second = document.getElementById("answer-second");
+      var language = code ? LANGUAGES[code] : null;
+      if (!language) {                       // "None" (or an unknown code)
+        second.hidden = true;
+        return;
+      }
+      var text = word.translations[code];
+      second.hidden = false;
+      second.textContent = text && String(text).trim() ? text : "—";
+      second.setAttribute("dir", language.dir || "ltr");   // right-to-left languages
+    }
+
+    // Pick an option: colour it, lock the options, flip to the translations
+    function pick(btn, text) {
+      if (answered) return;
+      answered = true;
+      var answer = round[index].translations.en;
+
+      var all = document.querySelectorAll("#options .option");
+      for (var i = 0; i < all.length; i++) {
+        all[i].disabled = true;                                       // options cannot be clicked again
+        if (all[i].textContent === answer) all[i].classList.add("correct"); // correct option turns green
+      }
+      if (text !== answer) btn.classList.add("wrong");                // a wrong pick turns red
+
+      // Counters at the top
+      recordAnswer(checkAnswer(round[index], text));
+      showCounters();
+
+      renderBack();
+      document.getElementById("card").classList.add("flipped");
+      document.getElementById("next").hidden = false;                 // Next appears after the pick
+    }
+
+    // Show the Dutch word, its type and the pronunciation button
     function showCard() {
-      showingDutch = true;
-      document.getElementById("card").textContent = round[index].nl;
+      var word = round[index];
+      answered = false;
+      document.getElementById("card").classList.remove("flipped");
+      document.getElementById("word").textContent = word.nl;
+      document.getElementById("word-type").textContent = word.type;
+      showSpeakButtons(true);
+      document.getElementById("voice-note").hidden = true;
+      document.getElementById("next").hidden = true;
+      renderOptions();
     }
 
-    // Update the score line
-    function showScore() {
-      document.getElementById("score").textContent = "Score: " + score + " / " + ROUND_SIZE;
+    // Show or hide every 🔊 button (front and back of the card)
+    function showSpeakButtons(show) {
+      var buttons = document.querySelectorAll(".speak");
+      for (var i = 0; i < buttons.length; i++) buttons[i].hidden = !show;
     }
 
-    // Move to the next card, or end the round after the last one
-    function nextCard() {
+    // Prefer an exact nl-NL voice, then any other Dutch voice
+    function findDutchVoice() {
+      var voices = speechSynthesis.getVoices();
+      var exact = null;
+      var dutch = null;
+      for (var i = 0; i < voices.length; i++) {
+        var lang = String(voices[i].lang || "").toLowerCase().replace("_", "-");
+        if (lang === "nl-nl" && !exact) exact = voices[i];
+        else if (lang.indexOf("nl") === 0 && !dutch) dutch = voices[i];
+      }
+      return exact || dutch;
+    }
+
+    // Read the Dutch word aloud with a Dutch voice
+    function speak() {
+      if (index >= ROUND_SIZE) return;
+      if (noDutchVoice()) {                  // show a message instead of failing
+        document.getElementById("voice-note").hidden = false;
+        return;
+      }
+      document.getElementById("voice-note").hidden = true;
+      var utter = new SpeechSynthesisUtterance(round[index].nl);
+      utter.lang = "nl-NL";
+      var voice = findDutchVoice();
+      if (voice) utter.voice = voice;
+      speechSynthesis.cancel();          // stop any previous reading
+      speechSynthesis.speak(utter);
+    }
+
+    // True when we know no Dutch voice can be used
+    var voicesLoaded = false;
+    function noDutchVoice() {
+      if (!window.speechSynthesis) return true;   // speech not supported at all
+      if (!voicesLoaded) return false;            // list still loading: just try
+      return !findDutchVoice();
+    }
+
+    // The voice list arrives asynchronously in some browsers
+    if (window.speechSynthesis) {
+      if (speechSynthesis.getVoices().length) voicesLoaded = true;
+      speechSynthesis.addEventListener("voiceschanged", function () { voicesLoaded = true; });
+    }
+
+    // Every 🔊 button reads the current word (front and back of the card)
+    var speakButtons = document.querySelectorAll(".speak");
+    for (var s = 0; s < speakButtons.length; s++) {
+      speakButtons[s].addEventListener("click", speak);
+    }
+
+    // Move to the next card, or finish after the 20th one
+    document.getElementById("next").addEventListener("click", function () {
       index++;
       if (index < ROUND_SIZE) showCard();
-      else endRound();
+      else finishRound();
+    });
+
+    // End of round: show the correct / wrong totals. The "New round"
+    // button below is always there and starts a fresh round.
+    function finishRound() {
+      document.getElementById("card").classList.remove("flipped");
+      document.getElementById("word").textContent = "Round done!";
+      document.getElementById("word-type").textContent =
+        "Correct: " + counters.correct + " · Wrong: " + counters.wrong;
+      showSpeakButtons(false);
+      document.getElementById("options").innerHTML = "";
+      document.getElementById("next").hidden = true;
+      document.getElementById("voice-note").hidden = true;
     }
 
-    // End of round: show final tally and hide the answer buttons
-    function endRound() {
-      var card = document.getElementById("card");
-      card.textContent = "Round done! You knew " + score + " / " + ROUND_SIZE;
-      card.style.fontSize = "20px";                 // smaller text fits the card
-      document.querySelector(".buttons").style.display = "none";
+    // The saved language choice. Storage may be blocked, so every
+    // access is wrapped in try/catch - the page must keep working.
+    var STORAGE_KEY = "flashcards.secondLanguage";
+
+    function loadLanguage() {
+      try {
+        return window.localStorage.getItem(STORAGE_KEY);
+      } catch (e) {
+        return null;                     // storage blocked: use the default
+      }
     }
 
-    // Start a new round: new random 20 words, score back to 0
+    function saveLanguage(value) {
+      try {
+        window.localStorage.setItem(STORAGE_KEY, value);
+      } catch (e) { /* storage blocked: nothing to do */ }
+    }
+
+    // Fill the dropdown: every language in words.js except English, plus "None".
+    // Nothing here is hard-coded - a new language in LANGUAGES shows up by itself.
+    function buildLanguageList() {
+      var select = document.getElementById("second-language");
+      select.innerHTML = "";
+
+      var none = document.createElement("option");
+      none.value = "";
+      none.textContent = "None";
+      select.appendChild(none);
+
+      var codes = Object.keys(LANGUAGES);
+      for (var i = 0; i < codes.length; i++) {
+        if (codes[i] === "en") continue;
+        var option = document.createElement("option");
+        option.value = codes[i];
+        option.textContent = LANGUAGES[codes[i]].name;
+        select.appendChild(option);
+      }
+
+      // Saved choice if there is one, otherwise Persian
+      var saved = loadLanguage();
+      var fallback = LANGUAGES.fa ? "fa" : "";
+      select.value = saved !== null ? saved : fallback;
+      if (saved !== null && select.value !== saved) select.value = fallback;
+    }
+
+    // Remember every change of the dropdown, and redraw a card already flipped
+    document.getElementById("second-language").addEventListener("change", function () {
+      saveLanguage(this.value);
+      if (document.getElementById("card").classList.contains("flipped")) renderBack();
+    });
+
+    // Start a new round: new random 20 words, counters back to 0
     function startRound() {
       round = pickRound(ROUND_SIZE);
       index = 0;
-      score = 0;
-      showScore();
-      var card = document.getElementById("card");
-      card.style.fontSize = "";                     // back to normal size
-      document.querySelector(".buttons").style.display = "";
+      resetCounters();
+      showCounters();
       showCard();
     }
 
-    // Click the card to flip between Dutch and English (not on the end screen)
-    document.getElementById("card").addEventListener("click", function () {
-      if (index >= ROUND_SIZE) return;
-      showingDutch = !showingDutch;
-      var word = round[index];
-      this.textContent = showingDutch ? word.nl : word.en;
-    });
-
-    // "I knew it": score +1, then next card
-    document.getElementById("knew").addEventListener("click", function () {
-      score++;
-      showScore();
-      nextCard();
-    });
-
-    // "I didn't know it": just next card, no score
-    document.getElementById("didnt-know").addEventListener("click", function () {
-      nextCard();
-    });
-
-    // "New round" button: fresh random 20, score reset
+    // "New round" button: fresh random 20
     document.getElementById("new-round").addEventListener("click", startRound);
 
     // First round loads with the page
+    buildLanguageList();
     startRound();
   </script>
 </body>
