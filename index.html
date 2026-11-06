@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dutch Flashcards</title>
+  <style>
+    /* Basic page layout */
+    body {
+      font-family: sans-serif;
+      background: #f4f4f4;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 0;
+      padding: 40px 16px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+    }
+
+    /* Score line under the title */
+    #score {
+      margin: 0 0 24px;
+      color: #555;
+    }
+
+    /* The flashcard itself */
+    #card {
+      width: 320px;
+      height: 180px;
+      background: #fff;
+      border: 2px solid #ccc;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+      margin-bottom: 24px;
+    }
+
+    /* Row of buttons under the card */
+    .buttons {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      background: #2c7be5;
+      color: #fff;
+    }
+
+    button.secondary {
+      background: #888;
+    }
+
+    button.new-round {
+      background: #28a745;
+    }
+  </style>
+</head>
+<body>
+  <h1>Dutch Flashcards</h1>
+  <p id="score">Score: 0 / 20</p>
+
+  <!-- Card shows the Dutch word; click flips it -->
+  <div id="card">hallo</div>
+
+  <div class="buttons">
+    <button id="knew">I knew it</button>
+    <button id="didnt-know">I didn't know it</button>
+  </div>
+  <button class="new-round" id="new-round">New round</button>
+
+  <script src="words.js"></script>
+  <script src="round.js"></script>
+  <script>
+    // --- Round logic ---
+    var ROUND_SIZE = 20;          // words per round
+    var round = [];               // the 20 random words of this round
+    var index = 0;                // position in the round
+    var showingDutch = true;      // which side of the card is visible
+    var score = 0;                // words answered with "I knew it"
+
+    // Show the current card (Dutch side first)
+    function showCard() {
+      showingDutch = true;
+      document.getElementById("card").textContent = round[index].nl;
+    }
+
+    // Update the score line
+    function showScore() {
+      document.getElementById("score").textContent = "Score: " + score + " / " + ROUND_SIZE;
+    }
+
+    // Move to the next card, or end the round after the last one
+    function nextCard() {
+      index++;
+      if (index < ROUND_SIZE) showCard();
+      else endRound();
+    }
+
+    // End of round: show final tally and hide the answer buttons
+    function endRound() {
+      var card = document.getElementById("card");
+      card.textContent = "Round done! You knew " + score + " / " + ROUND_SIZE;
+      card.style.fontSize = "20px";                 // smaller text fits the card
+      document.querySelector(".buttons").style.display = "none";
+    }
+
+    // Start a new round: new random 20 words, score back to 0
+    function startRound() {
+      round = pickRound(ROUND_SIZE);
+      index = 0;
+      score = 0;
+      showScore();
+      var card = document.getElementById("card");
+      card.style.fontSize = "";                     // back to normal size
+      document.querySelector(".buttons").style.display = "";
+      showCard();
+    }
+
+    // Click the card to flip between Dutch and English (not on the end screen)
+    document.getElementById("card").addEventListener("click", function () {
+      if (index >= ROUND_SIZE) return;
+      showingDutch = !showingDutch;
+      var word = round[index];
+      this.textContent = showingDutch ? word.nl : word.en;
+    });
+
+    // "I knew it": score +1, then next card
+    document.getElementById("knew").addEventListener("click", function () {
+      score++;
+      showScore();
+      nextCard();
+    });
+
+    // "I didn't know it": just next card, no score
+    document.getElementById("didnt-know").addEventListener("click", function () {
+      nextCard();
+    });
+
+    // "New round" button: fresh random 20, score reset
+    document.getElementById("new-round").addEventListener("click", startRound);
+
+    // First round loads with the page
+    startRound();
+  </script>
+</body>
+</html>

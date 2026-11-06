@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flashcards - Tests</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #f4f4f4;
+      margin: 0;
+      padding: 40px 16px;
+    }
+
+    h1 { margin: 0 0 4px; }
+    #summary { margin: 0 0 24px; color: #555; }
+
+    /* One row per test rule */
+    .row {
+      background: #fff;
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin-bottom: 12px;
+      max-width: 640px;
+      border-left: 6px solid #ccc;
+    }
+    .row.pass { border-left-color: #28a745; }
+    .row.fail { border-left-color: #dc3545; }
+
+    /* PASS / FAIL badge */
+    .badge {
+      display: inline-block;
+      min-width: 56px;
+      text-align: center;
+      color: #fff;
+      font-weight: bold;
+      border-radius: 4px;
+      padding: 3px 8px;
+      margin-right: 10px;
+    }
+    .pass .badge { background: #28a745; }
+    .fail .badge { background: #dc3545; }
+
+    .name { font-weight: bold; }
+    .detail { display: block; color: #555; font-size: 14px; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <h1>Dutch Flashcards - Tests</h1>
+  <p id="summary">Running...</p>
+  <div id="results"></div>
+
+  <script src="words.js"></script>
+  <script src="round.js"></script>
+  <script>
+    // Show one rule as PASS (green) or FAIL (red)
+    function report(ok, name, detail) {
+      var row = document.createElement("div");
+      row.className = "row " + (ok ? "pass" : "fail");
+      row.innerHTML =
+        '<span class="badge">' + (ok ? "PASS" : "FAIL") + "</span>" +
+        '<span class="name"></span><span class="detail"></span>';
+      row.querySelector(".name").textContent = name;
+      row.querySelector(".detail").textContent = detail;
+      document.getElementById("results").appendChild(row);
+      return ok;
+    }
+
+    var allOk = true;
+
+    // Guard: words.js and round.js must have loaded
+    if (typeof WORDS === "undefined" || typeof pickRound === "undefined") {
+      report(false, "Setup", "words.js or round.js failed to load.");
+    } else {
+
+      // --- Rule 1: every entry has a non-empty Dutch word and English meaning ---
+      var empty = [];
+      for (var i = 0; i < WORDS.length; i++) {
+        var w = WORDS[i] || {};
+        if (!String(w.nl || "").trim() || !String(w.en || "").trim()) {
+          empty.push("entry " + i);
+        }
+      }
+      allOk = report(
+        empty.length === 0,
+        "1. Every entry has a non-empty Dutch word and English meaning",
+        empty.length === 0
+          ? "All " + WORDS.length + " entries have both sides."
+          : "Empty side in: " + empty.join(", ")
+      );
+
+      // --- Rule 2: no duplicate Dutch words ---
+      var seen = {};
+      var dups = [];
+      for (var i = 0; i < WORDS.length; i++) {
+        var nl = String((WORDS[i] || {}).nl || "");
+        if (seen[nl]) dups.push(nl);
+        seen[nl] = true;
+      }
+      allOk = report(
+        dups.length === 0,
+        "2. No duplicate Dutch words",
+        dups.length === 0
+          ? "All " + WORDS.length + " Dutch words are unique."
+          : "Duplicates: " + dups.join(", ")
+      ) && allOk;
+
+      // --- Rule 3: a round always has exactly 20 words, no duplicates ---
+      var roundError = "";
+      if (WORDS.length < 20) {
+        roundError = "Word bank has only " + WORDS.length + " words (need 20).";
+      } else {
+        for (var t = 0; t < 100 && !roundError; t++) {
+          var round = pickRound(20);
+          if (round.length !== 20) {
+            roundError = "Round " + (t + 1) + " had " + round.length + " words.";
+            break;
+          }
+          var inRound = {};
+          for (var i = 0; i < round.length; i++) {
+            var nl = String((round[i] || {}).nl || "");
+            if (inRound[nl]) {
+              roundError = "Round " + (t + 1) + " repeats '" + nl + "'.";
+              break;
+            }
+            inRound[nl] = true;
+          }
+        }
+      }
+      allOk = report(
+        roundError === "",
+        "3. A new round has exactly 20 words, no duplicates",
+        roundError === "" ? "100 rounds tested, each with 20 unique words." : roundError
+      ) && allOk;
+    }
+
+    // Overall summary line
+    document.getElementById("summary").textContent =
+      allOk ? "All tests passed." : "Some tests FAILED.";
+  </script>
+</body>
+</html>
